@@ -1,0 +1,108 @@
+# -*- coding: utf-8 -*-
+
+import arcpy
+import os
+import csv
+
+class Toolbox(object):
+    def __init__(self):
+        """Define the toolbox (the name of the toolbox is the name of the
+        .pyt file)."""
+        self.label = "Toolbox"
+        self.alias = "toolbox"
+
+        # List of tool classes associated with this toolbox
+        self.tools = [Tool]
+
+
+class Tool(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "BrunnTool"
+        self.description = ""
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        """Define parameter definitions"""
+        params = None
+        return params
+
+    def isLicensed(self):
+        """Set whether tool is licensed to execute."""
+        return True
+
+    def updateParameters(self, parameters):
+        """Modify the values and properties of parameters before internal
+        validation is performed.  This method is called whenever a parameter
+        has been changed."""
+        return
+
+    def updateMessages(self, parameters):
+        """Modify the messages created by internal validation for each tool
+        parameter.  This method is called after internal validation."""
+        return
+
+    def execute(self, parameters, messages):
+        """The source code of the tool."""
+        #Loops threw all wells to see if they are in the most desirable soil types
+        arcpy.AddMessage('-Starting the process for (6)-')
+        arcpy.env.overwriteOutput = True
+        
+        folder_path = r"H:\DVG304 GIS Applikationsutveckling\Lab 2\brunnData"
+        brunn_name='geol'
+        jord_name='jordarter_25_100k_jg2_middle'
+        brunn_path=os.path.join(folder_path,brunn_name)
+        jord_path=os.path.join(folder_path,jord_name)
+
+        #Types of soils thats desriable
+        sql = u"{} LIKE '%Sand%' OR {} LIKE '%Grus%' OR {} LIKE '%grus%'OR {} LIKE '%sand%'".format(arcpy.AddFieldDelimiters(jord_name, 'JG2_TX'),
+                                                                                                    arcpy.AddFieldDelimiters(jord_name, 'JG2_TX'),
+                                                                                                    arcpy.AddFieldDelimiters(jord_name, 'JG2_TX'),
+                                                                                                    arcpy.AddFieldDelimiters(jord_name, 'JG2_TX'))
+
+        cursor = arcpy.da.SearchCursor(in_table=jord_path,field_names="JG2_TX",where_clause=sql)
+        dataToSave=[]
+        brunnflag = False
+        for jordtyp in cursor:
+            jordsql = u"{} = '{}'".format(arcpy.AddFieldDelimiters(jord_path, "JG2_TX"), str(jordtyp[0]))
+            jordLayer=arcpy.MakeFeatureLayer_management(jord_path, 'JordLayer',where_clause=jordsql)
+            #Makes a layer for the wells that are in the soil type
+            result = arcpy.SelectLayerByLocation_management(brunn_path, 'WITHIN', jordLayer)
+            brunnInJordLayer=arcpy.MakeFeatureLayer_management(result, 'BrunnJord')
+            
+            cursor = arcpy.da.SearchCursor(in_table=result,field_names="BRUNNS_ID")
+            for brunn in cursor:
+                brunnflag = True
+                result = [brunn[0],str(jordtyp[0])]
+                dataToSave.append(result)
+
+            arcpy.Delete_management(jordLayer)
+            arcpy.Delete_management(brunnInJordLayer)
+
+        #If it has not found any wells that matches then it prints out a message
+        if not brunnflag:
+                arcpy.AddMessage('No data to save')
+
+        #Only writes to the csv file if it has data, if doesnt have data then it print out a message
+        if len(dataToSave) != 0:
+            csvFields = ['Brunn ID','Mark Typ']
+            out_csv = open(r'H:\DVG304 GIS Applikationsutveckling\Lab 2\brunn.csv','w')
+            wr = csv.writer(out_csv, delimiter=';')
+            wr.writerow(csvFields)
+
+            arcpy.AddMessage('Brunn ID Mark Typ') 
+            for brunn in dataToSave:
+                row = [brunn[0],brunn[1]]
+                wr.writerow(row)
+                arcpy.AddMessage(str(brunn))
+            out_csv.close()    
+        else:
+            arcpy.AddMessage('No data, cant write to csv ')
+            
+        arcpy.AddMessage('-Done with process for (6)-')
+        return
+
+    def postExecute(self, parameters):
+        """This method takes place after outputs are processed and
+        added to the display."""
+        return
