@@ -1,0 +1,145 @@
+# -*- coding: utf-8 -*-
+
+import arcpy
+import os
+import csv
+
+
+class Toolbox(object):
+    def __init__(self):
+        """Define the toolbox (the name of the toolbox is the name of the
+        .pyt file)."""
+        self.label = "Toolbox"
+        self.alias = "toolbox"
+
+        # List of tool classes associated with this toolbox
+        self.tools = [Tool]
+
+
+class Tool(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Search Tool"
+        self.description = ""
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        """Define parameter definitions"""
+        params = None
+        return params
+
+    def isLicensed(self):
+        """Set whether tool is licensed to execute."""
+        return True
+
+    def updateParameters(self, parameters):
+        """Modify the values and properties of parameters before internal
+        validation is performed.  This method is called whenever a parameter
+        has been changed."""
+        return
+
+    def updateMessages(self, parameters):
+        """Modify the messages created by internal validation for each tool
+        parameter.  This method is called after internal validation."""
+        return
+
+    def execute(self, parameters, messages):
+        """The source code of the tool."""
+        arcpy.env.overwriteOutput = True
+        folder_path = r"H:\DVG304 GIS Applikationsutveckling\Lab 2\P2_files\Lab2.gdb"
+        fc_name='Countries'
+        fc_path=os.path.join(folder_path,fc_name) #builds path to feature class
+
+        #prints diffrent information about the feature class
+        arcpy.AddMessage('-Starting the process for (1)-')
+        desc = arcpy.Describe(fc_path)
+        
+        arcpy.AddMessage('Number of feature classes:')
+        arcpy.AddMessage(arcpy.GetCount_management(fc_path))
+        
+        arcpy.AddMessage('The geometry type is:')
+        arcpy.AddMessage(desc.shapeType)
+        
+        arcpy.AddMessage('The coordinate system name is:')
+        arcpy.AddMessage(desc.spatialReference.name)
+        
+        arcpy.AddMessage('-Done with process for (1)-')
+        
+        #Prints out a list of all countries with a pop of 20 milion in south america
+        arcpy.AddMessage('-Starting the process for (2)-')
+        fields = ['NAME_LONG','POP_EST','CONTINENT']
+        expression = u'{} >= 20000000 AND {} = \'South America\''.format(arcpy.AddFieldDelimiters(fc_path,'POP_EST'),
+                                                                         arcpy.AddFieldDelimiters(fc_path,'CONTINENT'))
+
+        cursor = arcpy.da.SearchCursor(in_table=fc_path,field_names=fields,where_clause=expression)
+
+        countries = []
+        #Iterates threw all items i cursor (items that meet the where clause)
+        for country in cursor:
+            countries.append(country)
+        arcpy.AddMessage('NAME POPULATION CONTINENT')                                      
+        for i in countries:
+            arcpy.AddMessage(str(i))
+    
+        arcpy.AddMessage('-Done with process for (2)-')
+
+        #creates a new feature class of countries with a economy level of G7
+        arcpy.AddMessage('-Starting the process for (3)-')
+
+        result = arcpy.MakeFeatureLayer_management(in_features=fc_path,out_layer="EconomyG7Layer")
+
+        sql = u"{} LIKE '%Developed region: G7%'".format(arcpy.AddFieldDelimiters(fc_path,'ECONOMY'))
+        arcpy.SelectLayerByAttribute_management(in_layer_or_view="EconomyG7Layer", selection_type = "NEW_SELECTION",where_clause=sql)
+        out_fc = os.path.join(folder_path,"EconomyG7Layer")
+        if arcpy.Exists(out_fc):
+            arcpy.Delete_management(out_fc)
+
+        arcpy.CopyFeatures_management("EconomyG7Layer",out_fc)
+
+        fields = ['NAME_LONG','ECONOMY']
+        cursor = arcpy.da.SearchCursor(in_table=out_fc,field_names=fields)
+
+        countries = []
+        #Iterates threw all items in cursor
+        for country in cursor:
+            countries.append(country)
+        arcpy.AddMessage('NAME ECONOMY')                                      
+        for i in countries:
+            arcpy.AddMessage(str(i))
+        arcpy.AddMessage('-Done with process for (3)-')
+
+        #Writes every country thaths in south asia/ with two headers Name and GDP_MD_EST
+        arcpy.AddMessage('-Starting the process for (4)-')
+
+        fields = ['NAME_LONG','GDP_MD_EST','SUBREGION']
+        sql = u"{} LIKE 'Southern Asia'".format(arcpy.AddFieldDelimiters(fc_path,'SUBREGION'))
+      
+        cursor = arcpy.da.SearchCursor(in_table=fc_path,field_names=fields,where_clause=sql)
+
+        countries = []
+        #Iterates threw all items in cursor
+        for country in cursor:
+            countries.append(country)
+                                            
+        csvFields = ['Name','GDP_MD_EST']
+        out_csv = open(r'H:\DVG304 GIS Applikationsutveckling\Lab 2\answer.csv','w')
+        wr = csv.writer(out_csv, delimiter=';')
+        wr.writerow(csvFields)
+
+        arcpy.AddMessage('NAME GDP_MD_EST SUBREGION') 
+        for fc in countries:
+            row = [fc[0],fc[1]]
+            wr.writerow(row)
+            arcpy.AddMessage(str(fc))
+        out_csv.close()
+            
+        arcpy.AddMessage('-Done with process for (4)-')
+
+        
+        
+        return
+
+    def postExecute(self, parameters):
+        """This method takes place after outputs are processed and
+        added to the display."""
+        return
