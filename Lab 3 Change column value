@@ -1,0 +1,104 @@
+# -*- coding: utf-8 -*-
+
+import arcpy
+
+
+class Toolbox(object):
+    def __init__(self):
+        """Define the toolbox (the name of the toolbox is the name of the
+        .pyt file)."""
+        self.label = "Toolbox"
+        self.alias = "toolbox"
+
+        # List of tool classes associated with this toolbox
+        self.tools = [Tool]
+
+
+class Tool(object):
+    def __init__(self):
+        """Define the tool (tool name is the name of the class)."""
+        self.label = "Tool"
+        self.description = ""
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        """Define parameter definitions"""
+        params = None
+        return params
+
+    def isLicensed(self):
+        """Set whether tool is licensed to execute."""
+        return True
+
+    def updateParameters(self, parameters):
+        """Modify the values and properties of parameters before internal
+        validation is performed.  This method is called whenever a parameter
+        has been changed."""
+        return
+
+    def updateMessages(self, parameters):
+        """Modify the messages created by internal validation for each tool
+        parameter.  This method is called after internal validation."""
+        return
+
+    def execute(self, parameters, messages):
+        """The source code of the tool."""
+        path_skane = r"H:\DVG304 GIS Applikationsutveckling\Lab 3\Lab 3\Lab 3.gdb"
+        path_lab3 = r"H:\DVG304 GIS Applikationsutveckling\Lab 3\ekdata"
+        skane = "SkaneLayer"
+        ek ="ek"
+        skane_path = os.path.join(path_skane,skane)
+        ek_path = os.path.join(path_lab3,ek)
+        kommunName = 'Name_2'
+        pop = 'BEFOLKNING'
+
+        desc = arcpy.Describe(skane_path)
+        if desc.shapeType == 'Polygon':
+           
+            cursor = arcpy.da.SearchCursor(in_table=skane_path,field_names=kommunName)
+            treeInKommun = {}
+            totTree = {}
+            #Add values per kommun
+            for kommun in cursor:
+                sql = "{} = '{}'".format(arcpy.AddFieldDelimiters(skane_path, kommunName), str(kommun[0]))
+                kommunLayer=arcpy.MakeFeatureLayer_management(skane_path, 'KommunLayer', where_clause = sql)
+
+                #Gets the number of oaks i each kommun
+                result = arcpy.SelectLayerByLocation_management(ek_path,'WITHIN',kommunLayer)
+                treeCount = int(arcpy.management.GetCount(result).getOutput(0))
+
+                #Gets the population of each kommun
+                cursor = arcpy.da.SearchCursor(in_table=kommunLayer,field_names=pop)
+                population = 0
+                for i in cursor:
+                    population = int(i[0])
+
+                treePerCapita = population/treeCount
+
+                #Adds the nummber of oaks to a dictionary and adds the oak per capita value to another distionary
+                totTree.update({str(kommun[0]):treeCount})
+                treeInKommun.update({str(kommun[0]):treePerCapita})
+                arcpy.Delete_management(kommunLayer)
+
+
+            #Loops threw all values and updates the row value of the column for the corresponding kommun
+            for kommun, per_capita in treeInKommun.items():
+                sql = "{} = '{}'".format(arcpy.AddFieldDelimiters(skane_path, kommunName), kommun)
+                updateCursor = arcpy.da.UpdateCursor(in_table=skane_path,field_names='EkPerCapita',where_clause=sql)
+                for row in updateCursor:
+                    row[0] = per_capita
+                    updateCursor.updateRow(row)
+
+            for kommun, treeCounnt in totTree.items():
+                sql = "{} = '{}'".format(arcpy.AddFieldDelimiters(skane_path, kommunName), kommun)
+                updateCursor = arcpy.da.UpdateCursor(in_table=skane_path,field_names='EkarTot',where_clause=sql)
+                for row in updateCursor:
+                    row[0] = treeCounnt
+                    updateCursor.updateRow(row)
+
+        return
+
+    def postExecute(self, parameters):
+        """This method takes place after outputs are processed and
+        added to the display."""
+        return
