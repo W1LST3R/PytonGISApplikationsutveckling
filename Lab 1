@@ -1,0 +1,55 @@
+#-------------------------------------------------------------------------------
+# Name:        module1
+# Purpose:
+#
+# Author:      22wipe02
+#
+# Created:     22-01-2024
+# Copyright:   (c) 22wipe02 2024
+# Licence:     <your licence>
+#-------------------------------------------------------------------------------
+
+def main():
+    pass
+
+if __name__ == '__main__':
+    main()
+import os
+import csv
+import arcpy
+
+arcpy.env.overwriteOutput = True
+folder_path = r'H:\DVG304 GIS Applikationsutveckling\Lab 1\byggData'
+
+
+# to change coordinate system and to add repro on all files that is a shp
+arcpy.env.workspace = folder_path
+fc_list = arcpy.ListFeatureClasses()
+for fc in fc_list:
+    desc = arcpy.Describe(fc)
+    if ".shp" in desc.name and "repro" not in desc.name:
+        newFileName = desc.name.split(".")[0] + "repro"
+        newFilePath = newFileName + "." + desc.name.split(".")[1]
+        outputFeatureClass = os.path.join(folder_path,newFilePath)
+        outputCoordinateSystem = arcpy.SpatialReference(4124)
+        arcpy.management.Project(fc,outputFeatureClass,outputCoordinateSystem)
+        print(outputFeatureClass)
+
+#function to write to a csv file
+def writeToCSV(folder):
+    arcpy.env.workspace = folder
+    fc_list = arcpy.ListFeatureClasses()
+
+    fields = ['Spatiala Referenssystem', 'Geometry', 'Name']
+    out_csv = open(r'H:\DVG304 GIS Applikationsutveckling\Lab 1\answer.csv','w')
+    wr = csv.writer(out_csv, delimiter=';')
+    wr.writerow(fields)
+    for fc in fc_list:
+        desc = arcpy.Describe(fc)
+        if "repro" in desc.name:
+            row = [desc.spatialReference.name, desc.shapeType, desc.name]
+            wr.writerow(row)
+
+    out_csv.close()
+
+writeToCSV(folder_path)
